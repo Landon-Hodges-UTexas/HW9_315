@@ -1,0 +1,174 @@
+---
+title: "HW9_315"
+author: "Landon Hodges"
+date: "2025-04-19"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+library(tidyverse)
+library(mosaic)
+library(kableExtra)
+library(effectsize)
+```
+
+## Problem 1 - Solder
+
+### Part A
+
+```{r solder1}
+sol = read_csv("solder.csv", show_col_types = FALSE)
+ggplot(sol) + geom_jitter(aes(Opening, skips)) + theme_light() + labs(title="Smaller Openings are More Error Prone", x = "Opening Type", y = "Number of Skips (Errors)")
+```
+
+In the graph above, each point is a circuit board. The point's height indicates how many skips (errors) were found in inspection, and opening types are differentiated along the x axis. The graph shows that the circuit boards soldered with the small opening were much more error prone than the others.
+
+### Part B
+
+```{r solder2}
+ggplot(sol) + geom_jitter(aes(Solder, skips)) + theme_light() + labs(title="Thin Solder is More Error Prone", x = "Solder Type", y = "Number of Skips (Errors)")
+```
+
+This graph is nearly identical to the one above, but instead of breaking the circuitboards up by opening type, they're broken up by the thickness of the solder used. The plot illustrates that thin solder is more error-prone than thick solder.
+
+### Part C
+
+```{r solder3}
+bootmodel1 = do(1000)*lm(skips ~ Solder + Opening + Solder:Opening, data=resample(sol))
+conf1 = confint(bootmodel1)
+tab = tibble(Parameter = conf1$name[1:6], 
+            Estimate = round(conf1$estimate[1:6], 2), 
+            Interval = str_c("(", round(conf1$lower[1:6], 2), ", ", round(conf1$upper[1:6], 2), ")"))
+tab %>%
+  kbl(booktabs = TRUE) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover"),
+    latex_options = c("HOLD_position"),
+    full_width = FALSE,
+    position = "center",
+    htmltable_class = "table-condensed"
+  )
+
+# Recommend large opening w/ thick solder
+
+```
+
+The coefficients above can be interpreted as follows:
+
+The **intercept** is the expected number of skips for a circuit board soldered with thick solder and a large opening.
+
+The **SolderThin** coefficient is how many *more* skips are expected when switching from thick solder to thin, assuming a large opening.
+
+The **OpeningM** coefficient is how many *more* skips are expected when switching from a large opening to medium, assuming thick solder.
+
+The **OpeningS** coefficient is how many *more* skips are expected when switching from a large opening to small, assuming thick solder.
+
+The **SolderThin.OpeningS** coefficient is the change in the effect of thin solder when the opening is small. That is to say, the effect of using thin solder is exacerbated when using a small opening, as compared to a large opening.
+
+The **SolderThin.OpeningM** coefficient is the change in the effect of thin solder when the opening is medium, similar to above, although in this case, the effect is insignificant.
+
+### Part D
+If I were to recommend a solder thickness and opening type according to the model, I would recommend a thick solder and a large opening type, since switching to any other condition predicts an increase in the number of skips.
+
+## Problem 2 - Groceries
+
+### Part A
+
+```{r groceries1}
+
+gro = read_csv("groceries.csv", show_col_types = FALSE)
+
+#gro$Store[gro$Store == "HEB" & gro$City == "Austin"] = "HEB Austin"
+#gro$Store[gro$Store == "HEB" & gro$City == "Houston"] = "HEB Houston"
+#gro$Store[gro$Store == "Whole Foods" & gro$City == "Austin"] = "Whole Foods Austin"
+#gro$Store[gro$Store == "Whole Foods" & gro$City == "Houston"] = "Whole Foods Houston"
+
+# A
+averages = gro %>%
+  summarize(avg = mean(Price), .by = Store) %>%
+  arrange(avg)
+ggplot(averages) + geom_col(aes(x=avg, y=Store), fill = "purple4") + theme_light() + labs(title="Grocery Stores by Average Price")
+```
+
+In the plot above, the average price of each store is shown on the x-axis. Among the cheapest stores are Fiesta, Walmart, and Kroger Fresh Fare. Among the priciest, Whole Foods, Wheatsville Food Co-op, and Natural Grocers.
+
+### Part B
+
+```{r groceries2}
+# B
+product = gro %>%
+  summarize(Count = n(), .by = Product) %>%
+  arrange(Count)
+ggplot(product) + geom_col(aes(x=Count, y=Product), fill = "purple4") + theme_light() + labs(title = "Product Availability", x = "Number of Stores Selling This Product")
+```
+
+In the graph above, every bar is a product, and its length indicates how stores it is sold at. The most common items are cartons of eggs and Horizon 2% milk, while the least common include sugary cereals like Cinnamon Toast Crunch, Frosted Flakes, and Lucky Charms.
+
+### Part C
+
+```{r groceries3}
+# C
+bootType = do(1000)*lm(Price ~ Product + Type, data = resample(gro))
+conf2 = confint(na.omit(bootType))
+upper = -round(conf2$upper[conf2$name == "TypeGrocery"], 2)
+lower = -round(conf2$lower[conf2$name == "TypeGrocery"], 2)
+```
+
+Compared with ordinary grocery stores (like Albertsons, HEB, or Krogers), convenience stores charge somewhere between \$`r lower` and \$`r upper` more for the same product.” 
+
+### Part D
+
+```{r groceries4}
+# D and E
+bootStore = do(1000)*lm(Price ~ Product + Store, data = resample(gro))
+conf3 = confint(na.omit(bootStore))
+
+conf3 = conf3[str_detect(conf3$name, "Store"),] %>%
+  arrange(estimate)
+minimums = str_remove(head(conf3$name,2), "Store") %>%
+  str_replace_all("\\.", " ")
+maximums = str_remove(tail(conf3$name, 2), "Store") %>%
+  str_replace_all("\\.", " ")
+```
+
+The stores that charge the least by product are `r minimums[1]` and `r minimums[2]`, while those that charge the most are `r maximums[1]` and `r maximums[2]`.
+
+### Part E
+
+```{r}
+diff = averages$avg[averages$Store == "Central Market"] - averages$avg[averages$Store == "H-E-B"]
+diff_adj = conf3$estimate[conf3$name == "StoreCentral.Market"] - conf3$estimate[conf3$name == "StoreH.E.B"]
+```
+
+Between the two possibilities, it seems that most of the price difference between Central Market and H-E-B comes from the prices they charge for products, because the difference in their price is almost the exact same when controlling for product selection.
+The difference in average price, assuming similar products, was $`r round(diff, 2)`, while the same difference, holding product constant, was `r round(diff_adj, 2)`, an increase from just subtracting the raw prices. This indicates that the reason Central Market has higher prices is not because it has products that demand higher price tags, but because the same products are more expensive if you buy them at a Central Market as compared to an H-E-B.
+
+```{r groceries5}
+# F
+gro = gro %>%
+  mutate(Income10k = Income %/% 10000)
+standIncome = standardize_parameters(lm(Price ~ Product + Income10k, data = resample(gro)))
+coef = standIncome$Std_Coefficient[standIncome$Parameter == "Income10k"]
+```
+
+According to the negative sign of the Income10k coefficient, customers in poorer ZIP codes tend to pay more on average than those in richer ZIP codes.
+Furthermore, a one standard deviation increase in ZIP code income seems to be associated with a `r round(coef, 2)` standard-deviation change in the price residents can expect to pay for groceries.
+
+## Problem 3 - Redlining
+
+#### A 
+True, according to Figure A1.
+
+#### B
+Indeterminable, because there is no model containing this interaction in the analysis. If there were a linear model with an `policies ~ age + minority + age:minority` argument, the output of the age:minority coefficient would indicate the existance of an interaction.
+
+#### C
+False, because the interaction between fire risk and minority percentage in Figure C1 is statistically and practically insignificant.
+
+#### D
+Indeterminable, because there is no r squared value for income and policy. If we had this r squared value, and it was close to one, we could determine that most of the variation in pricing is determined by income, but we don't, so we can't.
+
+#### E
+True, the p-value for minority is 0.006 in the final Multiple Predictors regression model, which means that if minority percentage had no effect on policy, we would only expect to see an effect this strong in the model .6% of the time. That is to say, this analysis finds that the minority percentage of a zip code is a predictor for loan denials, using FAIR policies as a substitute metric.
+
