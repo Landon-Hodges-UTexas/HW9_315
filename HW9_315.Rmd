@@ -35,7 +35,7 @@ This graph is nearly identical to the one above, but instead of breaking the cir
 ### Part C
 
 ```{r solder3}
-bootmodel1 = do(1000)*lm(skips ~ Solder + Opening + Solder:Opening, data=resample(sol))
+bootmodel1 = do(10000)*lm(skips ~ Solder + Opening + Solder:Opening, data=resample(sol))
 conf1 = confint(bootmodel1)
 tab = tibble(Parameter = conf1$name[1:6], 
             Estimate = round(conf1$estimate[1:6], 2), 
@@ -109,7 +109,7 @@ In the graph above, every bar is a product, and its length indicates how stores 
 
 ```{r groceries3}
 # C
-bootType = do(1000)*lm(Price ~ Product + Type, data = resample(gro))
+bootType = do(10000)*lm(Price ~ Product + Type, data = resample(gro))
 conf2 = confint(na.omit(bootType))
 upper = -round(conf2$upper[conf2$name == "TypeGrocery"], 2)
 lower = -round(conf2$lower[conf2$name == "TypeGrocery"], 2)
@@ -121,7 +121,7 @@ Compared with ordinary grocery stores (like Albertsons, HEB, or Krogers), conven
 
 ```{r groceries4}
 # D and E
-bootStore = do(1000)*lm(Price ~ Product + Store, data = resample(gro))
+bootStore = do(10000)*lm(Price ~ Product + Store, data = resample(gro))
 conf3 = confint(na.omit(bootStore))
 
 conf3 = conf3[str_detect(conf3$name, "Store"),] %>%
